@@ -164,7 +164,7 @@
 
     async function loadCSV() {
       try {
-        const response = await fetch("http://127.0.0.1:5000/proxy");
+        const response = await fetch(`/proxy?sheet=${encodeURIComponent(sheetUrl)}`);
         if (!response.ok) throw new Error("Gagal memuat CSV dari proxy.");
 
         const csvText = await response.text();
