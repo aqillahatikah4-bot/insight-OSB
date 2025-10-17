@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistem Semakan Ahli OSB</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    .header {
+      background-color: #0033cc;
+      color: white;
+      text-align: center;
+      padding: 12px;
+      font-weight: bold;
+      font-size: 22px;
+    }
+    .content {
+      background-color: #fff;
+      max-width: 900px;
+      margin: 20px auto;
+      border: 3px solid #ff6600;
+      border-radius: 8px;
+      padding: 15px;
+    }
+    .info-box {
+      background-color: #ff6600;
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .info-table {
+      width: 100%;
+      background: #f0f0f0;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .info-table td {
+      padding: 6px 10px;
+    }
+    .info-table td:first-child {
+      width: 180px;
+      font-weight: bold;
+    }
+    .plan-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .plan-table th, .plan-table td {
+      border: 1px solid #000;
+      padding: 6px;
+      text-align: left;
+    }
+    .plan-table th {
+      background-color: #0033cc;
+      color: white;
+      text-align: center;
+    }
+    .plan-table td:nth-child(3),
+    .plan-table td:nth-child(4) {
+      text-align: right;
+    }
+    .search-box {
+      background: #fff;
+      padding: 25px;
+      text-align: center;
+      margin: 100px auto;
+      width: 350px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    input, button {
+      width: 90%;
+      padding: 10px;
+      margin: 8px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #0033cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #001f7f;
+    }
+    .total-row {
+      font-weight: bold;
+      background: #eaf2ff;
+    }
+    .back-btn {
+      display: block;
+      margin: 20px auto 0;
+      background-color: #ff6600;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .back-btn:hover {
+      background-color: #c04900;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="search-box" id="searchBox">
+    <h2>Semakan Data Ahli OSB</h2>
+    <input type="text" id="icInput" placeholder="Masukkan No. IC tanpa -" />
+    <button onclick="semakData()">Semak</button>
+    <p id="status" style="color:red;"></p>
+  </div>
+
+  <div id="resultPage" style="display:none;">
+    <div class="header">HASIL CARIAN SISTEM SEMAKAN AHLI OSB</div>
+    <div class="content">
+      <div class="info-box">
+        <strong>Maklumat Ahli</strong><br>
+        Sekiranya maklumat di bawah tidak tepat, sila maklumkan kepada ADMIN dengan maklumat lengkap anda.
+      </div>
+
+      <table class="info-table">
+        <tr><td>Nama Penuh</td><td id="nama"></td></tr>
+        <tr><td>No Kad Pengenalan</td><td id="nokp"></td></tr>
+        <tr><td>No Telefon</td><td id="notel"></td></tr>
+        <tr><td>Nama Bank</td><td id="bank"></td></tr>
+        <tr><td>No Akaun Bank</td><td id="akaun"></td></tr>
+      </table>
+
+      <table class="plan-table" id="planTable">
+        <thead>
+          <tr>
+            <th>BIL</th>
+            <th>NAMA PLAN</th>
+            <th>LAIN-LAIN</th>
+            <th>IMBUHAN (RM)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="3" style="text-align:right;">JUMLAH KESELURUHAN</td>
+            <td id="jumlahKeseluruhan"></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <button class="back-btn" onclick="kembali()">? KEMBALI</button>
+    </div>
+  </div>
+
+  <script>
+    let dataAhli = [];
+
+    async function loadCSV() {
+      try {
+        const response = await fetch("http://127.0.0.1:5000/proxy");
+        if (!response.ok) throw new Error("Gagal memuat CSV dari proxy.");
+
+        const csvText = await response.text();
+        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+
+        dataAhli = parsed.data.map(row => {
+          const cleaned = {};
+          for (const key in row) {
+            cleaned[key.replace(/\uFEFF/g, '').trim().toUpperCase()] = (row[key] || '').trim();
+          }
+          return cleaned;
+        });
+
+        console.log("? CSV dimuat:", dataAhli.length, "rekod");
+        return dataAhli;
+      } catch (err) {
+        console.error("? Ralat memuat CSV:", err);
+        alert("Tidak dapat memuat data. Pastikan proxy Flask berjalan.");
+        return [];
+      }
+    }
+
+    async function semakData() {
+      const icInput = document.getElementById('icInput').value.trim();
+      const status = document.getElementById('status');
+      status.textContent = '';
+
+      if (!icInput) {
+        status.textContent = '?? Sila masukkan No Kad Pengenalan.';
+        return;
+      }
+
+      if (dataAhli.length === 0) await loadCSV();
+      if (dataAhli.length === 0) return;
+
+      const rekod = dataAhli.find(r =>
+        (r['NO KAD PENGENALAN'] || '').replace(/[^0-9]/g, '') === icInput.replace(/[^0-9]/g, '')
+      );
+
+      if (!rekod) {
+        status.textContent = '? Data tidak dijumpai.';
+        return;
+      }
+
+      document.getElementById('searchBox').style.display = 'none';
+      document.getElementById('resultPage').style.display = 'block';
+
+      document.getElementById('nama').textContent = rekod['NAMA'] || '-';
+      document.getElementById('nokp').textContent = rekod['NO KAD PENGENALAN'] || '-';
+      document.getElementById('notel').textContent = rekod['NO TELEFON'] || '-';
+      document.getElementById('bank').textContent = rekod['NAMA BANK'] || '-';
+      document.getElementById('akaun').textContent = rekod['NO AKAUN'] || '-';
+
+      const tbody = document.querySelector('#planTable tbody');
+      tbody.innerHTML = '';
+      let bil = 1;
+      let jumlah = 0;
+
+      for (const key in rekod) {
+        if (!['NAMA','NO KAD PENGENALAN','NO TELEFON','NAMA BANK','NO AKAUN'].includes(key)) {
+          const value = rekod[key];
+          if (value && value.trim() !== '') {
+            const nilai = parseFloat(value.replace(/[^0-9.]/g, '')) || 0;
+            jumlah += nilai;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${bil++}</td>
+              <td>${key}</td>
+              <td></td>
+              <td>${value}</td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+      }
+
+      document.getElementById('jumlahKeseluruhan').textContent =
+        'RM ' + jumlah.toLocaleString('ms-MY', { minimumFractionDigits: 2 });
+    }
+
+    function kembali() {
+      document.getElementById('resultPage').style.display = 'none';
+      document.getElementById('searchBox').style.display = 'block';
+      document.getElementById('icInput').value = '';
+      document.getElementById('status').textContent = '';
+    }
+  </script>
+</body>
+</html>
